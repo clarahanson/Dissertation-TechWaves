@@ -75,6 +75,7 @@ def clean_data (x, y):
 
 # In[3]:
 
+# Then, I define a function to implement the clean_data function for files in a given directory
 
 def clean_directory(input_directory, output_directory):
     # both arguments must be directory names ~~~that end in a forward slash~~~
