@@ -1,133 +1,113 @@
 
 # coding: utf-8
 
-# In[3]:
+# In[1]:
 
 
 from __future__ import division
 
-def make_clean_text(x):
-    global y
+def clean_format_yearly_dicts(x, y):
+    global transformed_data
     
     # argument x is the directory in which the data is found
-    # and y is a dictionary the function returns
-    # this function is written specifically for the way I've formatted the USA Today Data
-    # and should be changed when I work with the full directory
+    # argument y is a string to match a given set of files
     
-    import os, re, json, sys, nltk, string
+    # this function is fairly long because it (1) processes tokenizes and processes the text using NLTK
+    # and reformats the json data to a year-by-year dictionary for network analysis
+    # could separate text processing and data formatting into separate functions
+    
+    # note: this version treats headlines and sample text as the same data.
+    # separate analysis could consider whether headlines & article text position "technology" differently
+    
+    import os, re, json, sys, nltk, string, unicodedata
     import pandas as pd
     from nltk.corpus import stopwords
     from nltk import word_tokenize
     from nltk.stem import WordNetLemmatizer
-    
+
+    x = '/Users/Clara/Documents/27 - PhD 3 Summer/Research/Data/LN Headline Corpus/JSON_Data'
+
     os.chdir(x)
-    # regex used to import only the USA Today text
-    files = [f for f in os.listdir('.') if re.match('USAT_Batch[\d]+_[\d]+_[\d]+', f)] 
+    files = [f for f in os.listdir('.') if re.match(y, f)] 
     
-    # this loop creates a list containing each python dictionary loaded as a JSON object
     raw_data = []    
     for file in files:
         with open(file, 'r') as f:
-            q = json.loads(f.read())
-            for i in q:
+            r = json.loads(f.read())
+            for i in r:
                 raw_data.append(i)
-    
-    # transforming raw data to pd dataframe and back to remove duplicates
+                
+    #this step also takes a few seconds to run 
     raw_df = pd.DataFrame(raw_data)
     deduped_df = raw_df.drop_duplicates(subset='headline', keep='last')
-    raw_data = deduped_df.T.to_dict().values()
+    raw_data = deduped_df.to_dict('records')
     
-    # creates list of dicts {text, year} for all headlines and excerpted text
-    transformed_data = []
+    # tokenizing the text - this step is the most time consuming 
+    for entry in raw_data:
+        entry['headline']=nltk.word_tokenize(entry['headline'])
+        tokenized_texts = []
+        for each in entry['text']:
+            tokenized_texts.append(nltk.word_tokenize(each))
+        entry['text']=tokenized_texts
+        
+    # removing stopwords - also time consuming
+    stop = stopwords.words('english') + list(string.punctuation) + ['``', "'s", "n't", '--', "''", r'//']
+    for entry in raw_data:
+        good_headlines = []
+        good_texts = []
+        for i in entry['headline']:
+            if i not in stop:
+                good_headlines.append(i)
+            else: pass
+            entry['headline']=good_headlines
+        for each in entry['text']:
+            a = []
+            for i in each:
+                if i not in stop:
+                    a.append(i)
+                else: pass
+            good_texts.append(a)
+        entry['text']=good_texts
+        
+    # lemmatizes the words using wordnet, 
+    # pretty conservative in word transformation; use "in context" option in later iterations 
+    lemmatizer=WordNetLemmatizer()
+    for entry in raw_data:
+        lemmed_headline = []
+        lemmed_texts = []
+        for i in entry['headline']:
+            q = str(lemmatizer.lemmatize(i))
+            lemmed_headline.append(q)
+        entry['headline']=lemmed_headline
+        for each in entry['text']:
+            a = []
+            for i in each:
+                q = str(lemmatizer.lemmatize(i))
+                a.append(q)
+            lemmed_texts.append(a)
+        entry['text']=lemmed_texts
+    
+    # creates dictionary with key for each year and listed list of tokens
+    # ie transformed_data = {year: [['token', 'token2'], ['more', 'tokens', 'here']]}
+    transformed_data = {}
     for each in raw_data:
         q = re.match('(\d\d\d\d)', each['date'])
-        year = q.group(1)        
-        headline_dict = {'text': each['headline'], 'year': year}
-        transformed_data.append(headline_dict)
-        for y in each['text']:
-            also_dict = {'text': y, 'year': year}
-            transformed_data.append(also_dict)
-            
-    # tokenizes the words so text can be cleaned
-    for entry in transformed_data:#this step is time consuming - look into ways to shorten
-        entry['text']=nltk.word_tokenize(entry['text'])
-        
-    # step to remove stop words
-    stop = stopwords.words('english') + list(string.punctuation) + ['``', "'s", "n't", '--', "''"]#this line adapted from https://stackoverflow.com/questions/17390326/getting-rid-of-stop-words-and-document-tokenization-using-nltk?utm_medium=organic&utm_source=google_rich_qa&utm_campaign=google_rich_qa
-    for entry in transformed_data:
-        good_tokens = []
-        for i in entry['text']:
-            if i not in stop:
-                good_tokens.append(i)
-            else: pass
-            entry['text']=good_tokens
-
-    # lemmatizes the words using wordnet, pretty conservative in word transformation; use "in context" option in later iterations 
-    lemmatizer=WordNetLemmatizer()
-    for entry in transformed_data:
-        lemmed_words=[]
-        for i in entry['text']:
-            q = str(lemmatizer.lemmatize(i))
-            lemmed_words.append(q)
-        entry['text']=lemmed_words
-        
-    y = transformed_data    
+        year = q.group(1)
+        if year in transformed_data:
+            transformed_data[year].append(each['headline'])
+            for y in each['text']:
+                transformed_data[year].append(y)
+        if year not in transformed_data:
+            transformed_data[year]=[each['headline']]
+            for y in each['text']:
+                transformed_data[year].append(y)
 
 
-# In[5]:
+# In[3]:
 
 
-x = '/Users/Clara/Documents/27 - PhD 3 Summer/Research/Data/LN Headline Corpus/JSON_Data'
+x = ''
+y = ''
 
-make_clean_text(x)
-
-
-# In[6]:
-
-
-# adapted from the LaNCoA docs available https://github.com/domargan/LaNCoA
-
-# loop where y is a dictionary of {year, text} 
-# and x is an interger that defines the window size for co-occurrence 
-
-def make_network(var):
-    
-    global g
-
-    import networkx as nx
-    
-    window = 1
-    
-    g = nx.Graph()
-    
-    for each in var:
-        text = [x for x in each['text']]
-        for i, word in enumerate(text):
-            for j in range(1, window + 1):
-                if i - j >= 0:
-                    if g.has_edge(text[i - j], text[i]):
-                        g[text[i - j]][text[i]]['weight'] += 1
-                    else:
-                        g.add_edge(text[i - j], text[i], weight=1)
-                else:
-                    break
-
-
-# In[7]:
-
-
-make_network(y)
-
-
-# In[8]:
-
-
-years_list = list(range(1989, 2019)) #the USA Today data spans 1989 - 2018, this creates a list for each year
-
-
-# In[9]:
-
-
-#print node pairs for edges above a given weight
-print([(u,v,d) for (u,v,d) in g.edges(data=True) if d['weight'] >= 100])
+clean_format_yearly_dicts(x, y)
 
