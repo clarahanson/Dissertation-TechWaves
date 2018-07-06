@@ -182,8 +182,8 @@ def clean_directory(input_directory, output_directory):
 # In[20]:
 
 
-input_directory = "/Users/Clara/Documents/27 - PhD 3 Summer/Research/Data/LN Headline Corpus/txt_Data/"
-output_directory = "/Users/Clara/Documents/27 - PhD 3 Summer/Research/Data/LN Headline Corpus/JSON_Data/"
+input_directory = " "
+output_directory = " "
 
 clean_directory(input_directory, output_directory)
 
