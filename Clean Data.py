@@ -1,8 +1,7 @@
 
-
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 # Before cleaning the data, it must be in .txt format instead of .RTF
@@ -14,10 +13,14 @@
 # Step 3: This code creates a txt copy of every RTF file in the specified folder. Delete excess files. Retreived from http://osxdaily.com/2014/02/20/batch-convert-docx-to-txt-mac/
 
 
-# In[2]:
+# In[17]:
 
 
-# First, I define a function to extract text data, clean it, and save it as a .json object
+# First, I define a function to extract text data, clean it,
+# and call the nlp_dictionary function to further process the text
+# This code works with documents individually
+
+from __future__ import division
 
 def clean_data (x, y):
     # function takes two arguments where x is a filepath to a text document that should be cleaned,
@@ -67,15 +70,90 @@ def clean_data (x, y):
                 index_+=2
                 dictionary_data.append(temp_dic)
         if not headline_text.match(item): pass
+    
+    dictionary_data = nlp_dictionary(dictionary_data, y)
+    #the y argument is passed to the NLP dictionary function, where it is used to save the document
+
+
+# In[18]:
+
+
+def nlp_dictionary (input_dict, y):
+
+    # This function tokenizes, removes stopwords, and lemmatizes the data
+    # It is called within the clean_data function
+    # But is written separately so it can be removed should I want to save non-NLP-processed data
+    
+    import os, re, json, sys, nltk, string
+    import pandas as pd
+    from nltk.corpus import stopwords
+    from nltk import word_tokenize
+    from nltk.stem import WordNetLemmatizer
+    
+    # uses pandas dataframe to remove duplicates - removed for now - deletes many entries with "no headline"
+    # and cannot use 'text' as subset bc 'text' is list
+    #this step also takes a few seconds to run 
+    
+    #raw_df = pd.DataFrame(input_dict)
+    #deduped_df = raw_df.drop_duplicates(subset='headline', keep='last')
+    #raw_data = deduped_df.to_dict('records')
+    
+    # tokenizing the text - this step is the most time consuming 
+    for entry in input_dict:
+        entry['headline']=nltk.word_tokenize(entry['headline'])
+        tokenized_texts = []
+        for each in entry['text']:
+            tokenized_texts.append(nltk.word_tokenize(each))
+        entry['text']=tokenized_texts
         
-    # saves the dictionary to a JSON object with the name and filepath as the y argument
+    # removing stopwords - also time consuming 
+    # note: numbers are still present in text. If I want to remove numbers, add to previous cleaning code 
+    stop = stopwords.words('english') + list(string.punctuation) + ['``', "'s", "n't", '--', "''", r'//']
+    for entry in input_dict:
+        good_headlines = []
+        good_texts = []
+        for i in entry['headline']:
+            if i not in stop:
+                good_headlines.append(i)
+            else: pass
+            entry['headline']=good_headlines
+        for each in entry['text']:
+            a = []
+            for i in each:
+                if i not in stop:
+                    a.append(i)
+                else: pass
+            good_texts.append(a)
+        entry['text']=good_texts
+        
+    # lemmatizes the words using wordnet, 
+    # pretty conservative in word transformation; use "in context" option in later iterations 
+    lemmatizer=WordNetLemmatizer()
+    for entry in input_dict:
+        lemmed_headline = []
+        lemmed_texts = []
+        for i in entry['headline']:
+            q = str(lemmatizer.lemmatize(i))
+            lemmed_headline.append(q)
+        entry['headline']=lemmed_headline
+        for each in entry['text']:
+            a = []
+            for i in each:
+                q = str(lemmatizer.lemmatize(i))
+                a.append(q)
+            lemmed_texts.append(a)
+        entry['text']=lemmed_texts
+        
+# saves the dictionary to a JSON object with the name and filepath as the y argument
     with open (y, 'w') as json_document:
-        json.dump(dictionary_data, json_document)    
+        json.dump(input_dict, json_document)    
 
 
-# In[3]:
+# In[19]:
 
-# Then, I define a function to implement the clean_data function for files in a given directory
+
+# This function iterates over all files in a directory 
+# to implement the clean_data function over each file
 
 def clean_directory(input_directory, output_directory):
     # both arguments must be directory names ~~~that end in a forward slash~~~
@@ -101,10 +179,11 @@ def clean_directory(input_directory, output_directory):
         clean_data (x, y)
 
 
-# In[4]:
+# In[20]:
 
 
-input_directory = ""
-output_directory = ""
+input_directory = "/Users/Clara/Documents/27 - PhD 3 Summer/Research/Data/LN Headline Corpus/txt_Data/"
+output_directory = "/Users/Clara/Documents/27 - PhD 3 Summer/Research/Data/LN Headline Corpus/JSON_Data/"
 
 clean_directory(input_directory, output_directory)
+
