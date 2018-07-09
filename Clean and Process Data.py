@@ -87,41 +87,48 @@ def nlp_dictionary (input_dict, y):
     import os, re, json, sys, nltk, string
     import pandas as pd
     from nltk.corpus import stopwords
-    from nltk import word_tokenize
+    from nltk.tokenize import RegexpTokenizer
     from nltk.stem import WordNetLemmatizer
     
-    # uses pandas dataframe to remove duplicates - removed for now - deletes many entries with "no headline"
+    # formerly used pandas dataframe to remove duplicate articles, but it deletes many entries with "no headline"
     # and cannot use 'text' as subset bc 'text' is list
-    #this step also takes a few seconds to run 
     
     #raw_df = pd.DataFrame(input_dict)
     #deduped_df = raw_df.drop_duplicates(subset='headline', keep='last')
     #raw_data = deduped_df.to_dict('records')
     
     # tokenizing the text - this step is the most time consuming 
+    # using regular expression tokenizer rather than word_tokenizer to remove periods, dashes, and apostorphies 
+    tokenizer = RegexpTokenizer(r'\w+')
     for entry in input_dict:
-        entry['headline']=nltk.word_tokenize(entry['headline'])
+        entry['headline']=tokenizer.tokenize(entry['headline'])
         tokenized_texts = []
         for each in entry['text']:
-            tokenized_texts.append(nltk.word_tokenize(each))
+            tokenized_texts.append(tokenizer.tokenize(each))
         entry['text']=tokenized_texts
         
     # removing stopwords - also time consuming 
-    # note: numbers are still present in text. If I want to remove numbers, add to previous cleaning code 
-    stop = stopwords.words('english') + list(string.punctuation) + ['``', "'s", "n't", '--', "''", r'//']
+    # numbers and single letters are removed  
+    stop = set(stopwords.words('english')+["er"])
+    numbers = re.compile('\d+')
+    single_letter = re.compile('^\w$')
     for entry in input_dict:
         good_headlines = []
         good_texts = []
         for i in entry['headline']:
             if i not in stop:
-                good_headlines.append(i)
+                if not numbers.match(i):
+                    if not single_letter.match(i):
+                        good_headlines.append(i)
             else: pass
             entry['headline']=good_headlines
         for each in entry['text']:
             a = []
             for i in each:
                 if i not in stop:
-                    a.append(i)
+                    if not numbers.match(i):
+                        if not single_letter.match(i):
+                            a.append(i)
                 else: pass
             good_texts.append(a)
         entry['text']=good_texts
@@ -181,7 +188,7 @@ def clean_directory(input_directory, output_directory):
 
 # In[20]:
 
-
+# Note : Include a backslash at the end of the directory path
 input_directory = " "
 output_directory = " "
 
