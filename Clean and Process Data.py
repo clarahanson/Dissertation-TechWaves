@@ -8,7 +8,7 @@
 
 # Step 1: Open terminal
 
-# Step 2: type: textutil -convert txt /Users/Clara/Documents/27\ -\ PhD\ 3\ Summer/Research/Data/txt_Data/*.RTF
+# Step 2: type: textutil -convert txt /FILEPATH/*.RTF
 
 # Step 3: This code creates a txt copy of every RTF file in the specified folder. Delete excess files. Retreived from http://osxdaily.com/2014/02/20/batch-convert-docx-to-txt-mac/
 
