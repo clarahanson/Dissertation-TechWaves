@@ -41,6 +41,7 @@ def clean_data (x, y):
     
     # sets definitions to be used in the cleaning loop
     headline_text = re.compile('\d+\.\\t(.+)\\n')
+    blank_headline = re.compile('No Headline In Original')
     date_text = re.compile('Date\: (\d\d\d\d-\d\d-\d\d)\n')
     news_text = re.compile('\.\.\. (.+)[ ]?\.\.[\.+]')
     match = re.match
@@ -56,8 +57,11 @@ def clean_data (x, y):
     
     for item in news_data:
         if headline_text.match(item):
-            clean_headline = headline_text.match(item)
-            temp_dic = {'headline': clean_headline.group(1).lower()}
+            if blank_headline.search(item):
+                temp_dic = {'headline': ""}
+            else:
+                clean_headline = headline_text.match(item)
+                temp_dic = {'headline': clean_headline.group(1).lower()}
             temp_text = set()
             while news_text.match(news_data[index_]):
                 clean_text = news_text.match(news_data[index_])
