@@ -13,7 +13,7 @@
 # Step 3: This code creates a txt copy of every RTF file in the specified folder. Delete excess files. Retreived from http://osxdaily.com/2014/02/20/batch-convert-docx-to-txt-mac/
 
 
-# In[17]:
+# In[ ]:
 
 
 # First, I define a function to extract text data, clean it,
@@ -40,11 +40,7 @@ def clean_data (x, y):
     news_data = [x for x in raw_text if pieces_of_data.match(x)]
     
     # sets definitions to be used in the cleaning loop
-    headline_text = re.compile('\d+\.\\t(.+)\\n')
-    blank_headline = re.compile('No Headline In Original')
-    date_text = re.compile('Date\: (\d\d\d\d-\d\d-\d\d)\n')
-    news_text = re.compile('\.\.\. (.+)[ ]?\.\.[\.+]')
-    match = re.match
+    headline_text, blank_headline, date_text, news_text, match = re.compile('\d+\.\\t(.+)\\n'), re.compile('No Headline In Original'), re.compile('Date\: (\d\d\d\d-\d\d-\d\d)\n'), re.compile('\.\.\. (.+)[ ]?\.\.[\.+]'), re.match
     dictionary_data = []
     index_ = 1
     
@@ -58,7 +54,7 @@ def clean_data (x, y):
     for item in news_data:
         if headline_text.match(item):
             if blank_headline.search(item):
-                temp_dic = {'headline': ""}
+                temp_dic = {'headline': " "}
             else:
                 clean_headline = headline_text.match(item)
                 temp_dic = {'headline': clean_headline.group(1).lower()}
@@ -75,11 +71,31 @@ def clean_data (x, y):
                 dictionary_data.append(temp_dic)
         if not headline_text.match(item): pass
     
+    # below is a loop to delete duplicate entries
+    # cannot use more efficient method like pandas delete duplicates later because text is a list and multiple headlines are blank
+    # could rewrite above loops to format search returns as chunks, dedupe, then parse
+    
+    original_headlines = set()
+    original_news_text = set()
+        
+    for item in dictionary_data:
+        if item['headline'] not in original_headlines:
+            original_headlines.add(item['headline'])
+            for each in item['text']:
+                original_news_text.add(each)
+        else:
+            if not len(item['text']) == 0:
+                if item['text'][0] not in original_news_text:
+                    for each in item['text']:
+                        original_news_text.add(each)
+            else:
+                dictionary_data.remove(item)
+
     dictionary_data = nlp_dictionary(dictionary_data, y)
     #the y argument is passed to the NLP dictionary function, where it is used to save the document
 
 
-# In[18]:
+# In[ ]:
 
 
 def nlp_dictionary (input_dict, y):
@@ -113,9 +129,12 @@ def nlp_dictionary (input_dict, y):
         
     # removing stopwords - also time consuming 
     # numbers and single letters are removed  
-    stop = set(stopwords.words('english')+["er"])
-    numbers = re.compile('\d+')
-    single_letter = re.compile('^\w$')
+    # formatting words used to describe each article (column", "page", "section", "article") are also removed as stopwords
+    # author names not removed
+    # text processing is not ideal (some duplicate text will still exist, names are left in, some duplications in text, some duplicate headlines due to recurring columns)
+    # but will suffice for preliminary text analysis 
+    
+    stop, numbers, single_letter = set(stopwords.words('english')+["er", "column", "page", "section", "article"]), re.compile('\d+'), re.compile('^\w$')
     for entry in input_dict:
         good_headlines = []
         good_texts = []
@@ -125,6 +144,7 @@ def nlp_dictionary (input_dict, y):
                     if not single_letter.match(i):
                         good_headlines.append(i)
             else: pass
+            
             entry['headline']=good_headlines
         for each in entry['text']:
             a = []
@@ -145,6 +165,10 @@ def nlp_dictionary (input_dict, y):
         lemmed_texts = []
         for i in entry['headline']:
             q = str(lemmatizer.lemmatize(i))
+            if q == 'co':
+                q= 'company'
+            if q == 'corp':
+                q='company'
             lemmed_headline.append(q)
         entry['headline']=lemmed_headline
         for each in entry['text']:
@@ -160,7 +184,7 @@ def nlp_dictionary (input_dict, y):
         json.dump(input_dict, json_document)    
 
 
-# In[19]:
+# In[ ]:
 
 
 # This function iterates over all files in a directory 
@@ -190,7 +214,7 @@ def clean_directory(input_directory, output_directory):
         clean_data (x, y)
 
 
-# In[20]:
+# In[ ]:
 
 # Note : Include a backslash at the end of the directory path
 input_directory = " "
