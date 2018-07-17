@@ -1,12 +1,12 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 from __future__ import division
 
-def format_data(input_directory, optional_string):
+def format_data(input_directory):
     global transformed_data
     
     # this function transforms data formatted {headline: , text:[], date:}
@@ -22,7 +22,7 @@ def format_data(input_directory, optional_string):
     import pandas as pd
 
     os.chdir(input_directory)
-    files = [f for f in os.listdir('.') if re.match(optional_string, f)] 
+    files = [f for f in os.listdir('.') if f != ".DS_Store"] 
     
     raw_data = []    
     for file in files:
@@ -47,7 +47,7 @@ def format_data(input_directory, optional_string):
                 transformed_data[year].append(y)
 
 
-# In[2]:
+# In[ ]:
 
 
 def make_edge_lists(window, output_directory):
@@ -81,20 +81,19 @@ def make_edge_lists(window, output_directory):
         nx.write_edgelist(g, key+"_coocurrence.edges")
 
 
-# In[3]:
+# In[ ]:
 
 
-def make_network(input_directory, output_directory, optional_string, window):
-    format_data(input_directory, optional_string)
+def make_network(input_directory, output_directory, window):
+    format_data(input_directory)
     make_edge_lists(window, output_directory)
 
 
-# In[4]:
+# In[ ]:
 
-
+# include backslash at the end of each filepath
 input_directory = " "
 output_directory = " "
-optional_string = " "
 window = 1
 
-make_network(input_directory, output_directory, optional_string, window)
+make_network(input_directory, output_directory, window)
