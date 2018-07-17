@@ -159,6 +159,7 @@ def nlp_dictionary (input_dict, y):
         
     # lemmatizes the words using wordnet, 
     # pretty conservative in word transformation; use "in context" option in later iterations 
+    # added check to merge 'co' and 'company' - prev treated separately 
     lemmatizer=WordNetLemmatizer()
     for entry in input_dict:
         lemmed_headline = []
@@ -166,15 +167,15 @@ def nlp_dictionary (input_dict, y):
         for i in entry['headline']:
             q = str(lemmatizer.lemmatize(i))
             if q == 'co':
-                q= 'company'
-            if q == 'corp':
-                q='company'
+                q = q.replace('co', 'company')
             lemmed_headline.append(q)
         entry['headline']=lemmed_headline
         for each in entry['text']:
             a = []
             for i in each:
                 q = str(lemmatizer.lemmatize(i))
+                if q == 'co':
+                    q = q.replace('co', 'company')
                 a.append(q)
             lemmed_texts.append(a)
         entry['text']=lemmed_texts
