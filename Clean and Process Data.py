@@ -218,8 +218,8 @@ def clean_directory(input_directory, output_directory):
 # In[ ]:
 
 # Note : Include a backslash at the end of the directory path
-input_directory = "/Users/Clara/Documents/27 - PhD 3 Summer/Research/Data/LN_Computer_Corpus/txt_Data/"
-output_directory = "/Users/Clara/Documents/27 - PhD 3 Summer/Research/Data/LN_Computer_Corpus/json_Data/"
+input_directory = " "
+output_directory = " "
 
 clean_directory(input_directory, output_directory)
 
