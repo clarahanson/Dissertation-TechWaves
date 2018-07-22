@@ -1,25 +1,11 @@
 
-# coding: utf-8
-
-# In[ ]:
-
-
 from __future__ import division
 
-def format_data(input_directory):
-    global transformed_data
-    
-    # this function transforms data formatted {headline: , text:[], date:}
-    # to {year: {text: [['token', 'token'], ['token', 'token', 'token']]}}
-    # in order to make separate networks for each year
-    
-    # argument input_directory is the directory in which the data is found
-    # argument optional_string is a string to match a given set of files
-    
-    # note: this version treats headlines and sample text as the same data.
+def make_network(input_directory, output_directory, window=1, network='bipartite'):
     
     import os, re, json, sys
     import pandas as pd
+    import networkx as nx
 
     os.chdir(input_directory)
     files = [f for f in os.listdir('.') if f != ".DS_Store"] 
@@ -30,70 +16,77 @@ def format_data(input_directory):
             r = json.loads(f.read())
             for i in r:
                 raw_data.append(i)
-    
-    # this loop reformats the dictionaries to a single dictionary
-    # to create the edge lists below
-    transformed_data = {}
-    for each in raw_data:
-        q = re.match('(\d\d\d\d)', each['date'])
-        year = q.group(1)
-        if year in transformed_data:
-            transformed_data[year].append(each['headline'])
-            for y in each['text']:
-                transformed_data[year].append(y)
-        if year not in transformed_data:
-            transformed_data[year]=[each['headline']]
-            for y in each['text']:
-                transformed_data[year].append(y)
-
-
-# In[ ]:
-
-
-def make_edge_lists(window, output_directory):
-    
-    # this function uses the transformed_data dictionary, output above, to create 
-    # co-occurrence matrices for each year of text data
-    
-    # the window argument defines the window for co-occurrence
-    # and the output_directory argument specifies where the edgelists will be saved
-    
-    # some of the code below is adapted from the LaNCoA lang_nets doc, 
-    # available here: https://github.com/domargan/LaNCoA/blob/master/lancoa/lang_nets.py
-    
-    import os
-    import networkx as nx
-
-    os.chdir(output_directory)
-
-    for key, value in transformed_data.items():
-        g = nx.Graph()
-        for each in value:
-            for i, word in enumerate(each):
-                for j in range(1, window + 1):
-                    if i - j >= 0:
-                        if g.has_edge(each[i - j], each[i]):
-                            g[each[i - j]][each[i]]['weight'] += 1
+                
+    # If I'm making a window network, this loop first reformats the raw data
+    # then outputs networks generated with the window method for each year
+    if network=='window':
+        transformed_data = {}
+        for each in raw_data:
+            q = re.match('(\d\d\d\d)', each['date'])
+            year = q.group(1)
+            if year in transformed_data:
+                transformed_data[year].append(each['headline'])
+                for y in each['text']:
+                    transformed_data[year].append(y)
+            if year not in transformed_data:
+                transformed_data[year]=[each['headline']]
+                for y in each['text']:
+                    transformed_data[year].append(x)
+                    
+        os.chdir(output_directory)
+        for key, value in transformed_data.items():
+            g = nx.Graph()
+            for each in value:
+                for i, word in enumerate(each):
+                    for j in range(1, window + 1):
+                        if i - j >= 0:
+                            if g.has_edge(each[i - j], each[i]):
+                                g[each[i - j]][each[i]]['weight'] += 1
+                            else:
+                                g.add_edge(each[i - j], each[i], weight=1)
                         else:
-                            g.add_edge(each[i - j], each[i], weight=1)
+                            break
+            nx.write_edgelist(g, key+"_coocurrence.edges")
+            
+    if network=='bipartite':
+        transformed_data = {}
+        for each in raw_data:
+            q = re.match('(\d\d\d\d)', each['date'])
+            year = q.group(1)
+            if year in transformed_data:
+                article_text=each['headline']
+                for y in each['text']:
+                    for x in y:
+                        article_text.append(x)
+                transformed_data[year].append(article_text)
+            if year not in transformed_data:
+                article_text=each['headline']
+                for y in each['text']:
+                    for x in y:
+                        article_text.append(x)
+                transformed_data[year]=[article_text]
+        
+        os.chdir(output_directory)
+        from networkx.algorithms import bipartite
+        
+        for key, value in transformed_data.items():
+            B = nx.Graph()
+            for counter, text in enumerate(value):
+                B.add_node(counter, bipartite=0)
+                for i in text:
+                    if B.has_node(i):
+                        B.add_edge(counter, i)
                     else:
-                        break
-        nx.write_edgelist(g, key+"_coocurrence.edges")
+                        B.add_node(i, bipartite=1)
+                        B.add_edge(counter, i)
+            top_nodes = set(n for n,d in B.nodes(data=True) if d['bipartite']==0)
+            bottom_nodes = set(B) - top_nodes
+            G_False = bipartite.weighted_projected_graph(B, bottom_nodes, ratio=False)
+            nx.write_edgelist(G_False, key+"_bipartite.edges")
+            
 
-
-# In[ ]:
-
-
-def make_network(input_directory, output_directory, window):
-    format_data(input_directory)
-    make_edge_lists(window, output_directory)
-
-
-# In[ ]:
-
-# include backslash at the end of each filepath
+            
 input_directory = " "
 output_directory = " "
-window = 1
 
-make_network(input_directory, output_directory, window)
+make_network(input_directory, output_directory, window=1, network=' ')
