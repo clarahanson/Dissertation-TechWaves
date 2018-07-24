@@ -90,7 +90,7 @@ def clean_data (x, y):
                         original_news_text.add(each)
             else:
                 dictionary_data.remove(item)
-
+    
     dictionary_data = nlp_dictionary(dictionary_data, y)
     #the y argument is passed to the NLP dictionary function, where it is used to save the document
 
@@ -160,7 +160,9 @@ def nlp_dictionary (input_dict, y):
     # lemmatizes the words using wordnet, 
     # pretty conservative in word transformation; use "in context" option in later iterations 
     # added check to merge 'co' and 'company' - prev treated separately 
+    # I'm also pulling out the final vocabulary for use below
     lemmatizer=WordNetLemmatizer()
+    total_vocabulary = []
     for entry in input_dict:
         lemmed_headline = []
         lemmed_texts = []
@@ -170,6 +172,7 @@ def nlp_dictionary (input_dict, y):
                 q = q.replace('co', 'company')
             lemmed_headline.append(q)
         entry['headline']=lemmed_headline
+        total_vocabulary.extend(lemmed_headline)
         for each in entry['text']:
             a = []
             for i in each:
@@ -178,7 +181,20 @@ def nlp_dictionary (input_dict, y):
                     q = q.replace('co', 'company')
                 a.append(q)
             lemmed_texts.append(a)
+            total_vocabulary.extend(a)
         entry['text']=lemmed_texts
+        
+# now I count the vocabulary of the corpus and identify words that appear fewer than 5 times
+
+    c = Counter(total_vocabulary)
+    included_words = set(key for (key, value) in c.items() if value>=5)
+
+# looping over each entry to include only words on the included_words list
+    
+    for entry in input_dict:
+        entry['headline'] = [i for i in entry['headline'] if i in included_words]
+        for each_list in entry['text']:
+            each_list=[i for i in each_list if i in included_words]
         
 # saves the dictionary to a JSON object with the name and filepath as the y argument
     with open (y, 'w') as json_document:
