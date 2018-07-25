@@ -1,9 +1,3 @@
-
-# coding: utf-8
-
-# In[ ]:
-
-
 # Before cleaning the data, it must be in .txt format instead of .RTF
 
 # Step 1: Open terminal
@@ -12,9 +6,7 @@
 
 # Step 3: This code creates a txt copy of every RTF file in the specified folder. Delete excess files. Retreived from http://osxdaily.com/2014/02/20/batch-convert-docx-to-txt-mac/
 
-
-# In[ ]:
-
+# [ ]
 
 # First, I define a function to extract text data, clean it,
 # and call the nlp_dictionary function to further process the text
@@ -27,8 +19,12 @@ def clean_data (x, y):
     # and y is a filepath to where the transformed .json object should be saved
     
     # imports relevant modules 
-    import re, os, json
-    from datetime import datetime
+    import re, os, json, sys, nltk, string
+    import pandas as pd
+    from nltk.corpus import stopwords
+    from nltk.tokenize import RegexpTokenizer
+    from nltk.stem import WordNetLemmatizer
+    from collections import Counter
     
     # opens the file defined by x, imports the text
     test_file = open(x, "r")
@@ -44,36 +40,26 @@ def clean_data (x, y):
     dictionary_data = []
     index_ = 1
     
-    # cleaning loop
-    # follow the logic of the data structure
-    # first looks for lines that match headline_text
-    # iterates over the following lines to create a set of the news text (which can be of length 1-7)
-    # stores the next line that is not news text as a date string
-    # returns a list object full of dictionaries that store data about each article
+    # cleaning loop; follows the logic of the data structure:
+    # first looks for lines that match headline_text, iterates over the following lines to create a set of the news text (which can be of length 1-7)
+    # stores the next line that is not news text as a date string, returns a list object full of dictionaries that store data about each article
     
     for item in news_data:
         if headline_text.match(item):
-            if blank_headline.search(item):
-                temp_dic = {'headline': " "}
-            else:
-                clean_headline = headline_text.match(item)
-                temp_dic = {'headline': clean_headline.group(1).lower()}
-            temp_text = set()
+            temp_dic = {'headline': (' ' if blank_headline.search(item) else headline_text.match(item).group(1).lower())}
+            temp_text=set()
             while news_text.match(news_data[index_]):
-                clean_text = news_text.match(news_data[index_])
-                temp_text.add(clean_text.group(1).lower())
+                temp_text.add(news_text.match(news_data[index_]).group(1).lower())
                 index_+=1
             if not news_text.match(news_data[index_]):
                 temp_dic['text']=list(temp_text)
-                clean_date = date_text.match(news_data[index_])
-                temp_dic['date']=clean_date.group(1)
+                temp_dic['date']=date_text.match(news_data[index_]).group(1)
                 index_+=2
                 dictionary_data.append(temp_dic)
         if not headline_text.match(item): pass
     
     # below is a loop to delete duplicate entries
     # cannot use more efficient method like pandas delete duplicates later because text is a list and multiple headlines are blank
-    # could rewrite above loops to format search returns as chunks, dedupe, then parse
     
     original_headlines = set()
     original_news_text = set()
@@ -81,128 +67,40 @@ def clean_data (x, y):
     for item in dictionary_data:
         if item['headline'] not in original_headlines:
             original_headlines.add(item['headline'])
-            for each in item['text']:
-                original_news_text.add(each)
+            original_news_text.add(each for each in item['text'])
         else:
             if not len(item['text']) == 0:
                 if item['text'][0] not in original_news_text:
-                    for each in item['text']:
-                        original_news_text.add(each)
+                    original_news_text.add(each for each in item['text'])
             else:
                 dictionary_data.remove(item)
     
-    dictionary_data = nlp_dictionary(dictionary_data, y)
-    #the y argument is passed to the NLP dictionary function, where it is used to save the document
-
-
-# In[ ]:
-
-
-def nlp_dictionary (input_dict, y):
-
-    # This function tokenizes, removes stopwords, and lemmatizes the data
-    # It is called within the clean_data function
-    # But is written separately so it can be removed should I want to save non-NLP-processed data
+    # tokenizing the text - this step is the most time consuming - using regular expression tokenizer rather than word_tokenizer to remove periods, dashes, and apostorphies 
+    # it also deletes reference to AT&T and U.S.A., which should be modified
     
-    import os, re, json, sys, nltk, string
-    import pandas as pd
-    from nltk.corpus import stopwords
-    from nltk.tokenize import RegexpTokenizer
-    from nltk.stem import WordNetLemmatizer
-    
-    # formerly used pandas dataframe to remove duplicate articles, but it deletes many entries with "no headline"
-    # and cannot use 'text' as subset bc 'text' is list
-    
-    #raw_df = pd.DataFrame(input_dict)
-    #deduped_df = raw_df.drop_duplicates(subset='headline', keep='last')
-    #raw_data = deduped_df.to_dict('records')
-    
-    # tokenizing the text - this step is the most time consuming 
-    # using regular expression tokenizer rather than word_tokenizer to remove periods, dashes, and apostorphies 
-    tokenizer = RegexpTokenizer(r'\w+')
-    for entry in input_dict:
+    tokenizer = RegexpTokenizer(r'\w+',)
+    for entry in dictionary_data:
         entry['headline']=tokenizer.tokenize(entry['headline'])
-        tokenized_texts = []
-        for each in entry['text']:
-            tokenized_texts.append(tokenizer.tokenize(each))
-        entry['text']=tokenized_texts
+        entry['text']=[tokenizer.tokenize(x) for x in entry['text']]
         
-    # removing stopwords - also time consuming 
-    # numbers and single letters are removed  
-    # formatting words used to describe each article (column", "page", "section", "article") are also removed as stopwords
-    # author names not removed
-    # text processing is not ideal (some duplicate text will still exist, names are left in, some duplications in text, some duplicate headlines due to recurring columns)
-    # but will suffice for preliminary text analysis 
+    # removing stopwords - also time consuming - numbers and single letters are removed, author names not removed, formatting words used to describe each article (column", "page", "section", "article", "abstract") are also removed as stopwords
+    # text processing is not ideal but will suffice for preliminary analysis (some duplicate text will still exist, names are left in, some duplications in text, some duplicate headlines due to recurring columns)
     
-    stop, numbers, single_letter = set(stopwords.words('english')+["er", "column", "page", "section", "article"]), re.compile('\d+'), re.compile('^\w$')
-    for entry in input_dict:
-        good_headlines = []
-        good_texts = []
-        for i in entry['headline']:
-            if i not in stop:
-                if not numbers.match(i):
-                    if not single_letter.match(i):
-                        good_headlines.append(i)
-            else: pass
-            
-            entry['headline']=good_headlines
-        for each in entry['text']:
-            a = []
-            for i in each:
-                if i not in stop:
-                    if not numbers.match(i):
-                        if not single_letter.match(i):
-                            a.append(i)
-                else: pass
-            good_texts.append(a)
-        entry['text']=good_texts
-        
-    # lemmatizes the words using wordnet, 
-    # pretty conservative in word transformation; use "in context" option in later iterations 
-    # added check to merge 'co' and 'company' - prev treated separately 
-    # I'm also pulling out the final vocabulary for use below
+    stop, numbers, single_letter = set(stopwords.words('english')+["er", "column", "page", "section", "article", "abstract"]), re.compile('\d+'), re.compile('^\w$')
+    for entry in dictionary_data:
+        entry['headline']=[i for i in entry['headline'] if i not in stop if not numbers.match(i) if not single_letter.match(i)]
+        entry['text']=[[i for i in each if i not in stop if not numbers.match(i) if not single_letter.match(i)] for each in entry['text']]
+
+    # lemmatizes the words using wordnet - pretty conservative in word transformation; use "in context" option in later iterations 
+    
     lemmatizer=WordNetLemmatizer()
-    total_vocabulary = []
-    for entry in input_dict:
-        lemmed_headline = []
-        lemmed_texts = []
-        for i in entry['headline']:
-            q = str(lemmatizer.lemmatize(i))
-            if q == 'co':
-                q = q.replace('co', 'company')
-            lemmed_headline.append(q)
-        entry['headline']=lemmed_headline
-        total_vocabulary.extend(lemmed_headline)
-        for each in entry['text']:
-            a = []
-            for i in each:
-                q = str(lemmatizer.lemmatize(i))
-                if q == 'co':
-                    q = q.replace('co', 'company')
-                a.append(q)
-            lemmed_texts.append(a)
-            total_vocabulary.extend(a)
-        entry['text']=lemmed_texts
-        
-# now I count the vocabulary of the corpus and identify words that appear fewer than 5 times
-
-    c = Counter(total_vocabulary)
-    included_words = set(key for (key, value) in c.items() if value>=5)
-
-# looping over each entry to include only words on the included_words list
+    for entry in dictionary_data:
+        entry['headline']=[lemmatizer.lemmatize(i) for i in entry['headline']]
+        entry['text']=[[lemmatizer.lemmatize(i) for i in each] for each in entry['text']]
     
-    for entry in input_dict:
-        entry['headline'] = [i for i in entry['headline'] if i in included_words]
-        for each_list in entry['text']:
-            each_list=[i for i in each_list if i in included_words]
-        
 # saves the dictionary to a JSON object with the name and filepath as the y argument
     with open (y, 'w') as json_document:
-        json.dump(input_dict, json_document)    
-
-
-# In[ ]:
-
+        json.dump(dictionary_data, json_document)    
 
 # This function iterates over all files in a directory 
 # to implement the clean_data function over each file
@@ -230,12 +128,8 @@ def clean_directory(input_directory, output_directory):
         # calls the clean_data function for each file in file_list, thus cleaning each file & saving it as a .json object
         clean_data (x, y)
 
-
-# In[ ]:
-
 # Note : Include a backslash at the end of the directory path
 input_directory = " "
 output_directory = " "
 
 clean_directory(input_directory, output_directory)
-
