@@ -1,11 +1,12 @@
 
 from __future__ import division
 
-def make_network(input_directory, output_directory, window=1, network='bipartite'):
+def make_network(input_directory, output_directory, window=1, network='bipartite', excluded_words=False):
     
     import os, re, json, sys
     import pandas as pd
     import networkx as nx
+    from collections import Counter
 
     os.chdir(input_directory)
     files = [f for f in os.listdir('.') if f != ".DS_Store"] 
@@ -17,6 +18,20 @@ def make_network(input_directory, output_directory, window=1, network='bipartite
             for i in r:
                 raw_data.append(i)
                 
+    # optional loop to exclude all words that appear in the corpus fewer than 5 times
+    if excluded_words == True:
+        total_vocabulary = []
+        for each in raw_data:
+            total_vocabulary.extend(each['headline'])
+            for every in each['text']:
+                total_vocabulary.extend(every)
+
+        included_words = set(key for (key, value) in Counter(total_vocabulary).items() if value>=5)
+
+        for entry in raw_data:
+            entry['headline']=[i for i in entry['headline'] if i in included_words]
+            entry['text']=[[i for i in each if i in included_words] for each in entry['text']]
+
     # If I'm making a window network, this loop first reformats the raw data
     # then outputs networks generated with the window method for each year
     if network=='window':
@@ -32,7 +47,8 @@ def make_network(input_directory, output_directory, window=1, network='bipartite
                 transformed_data[year]=[each['headline']]
                 for y in each['text']:
                     transformed_data[year].append(x)
-                    
+        
+        # some code in the loop below taken from the LaCoNa documentation 
         os.chdir(output_directory)
         for key, value in transformed_data.items():
             g = nx.Graph()
@@ -89,4 +105,4 @@ def make_network(input_directory, output_directory, window=1, network='bipartite
 input_directory = " "
 output_directory = " "
 
-make_network(input_directory, output_directory, window=1, network=' ')
+make_network(input_directory, output_directory, window=1, network='bipartite', excluded_words=True)
