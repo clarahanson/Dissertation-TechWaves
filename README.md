@@ -1,5 +1,4 @@
-# Dissertation-TechWaves
-Project 1 of dissertation, considering flow and sentiment of tech meaning
+Initial data exploration for the first project of my dissertation, which considers the flow and sentiment of tech meaning
 
 "Clean and Process Data.py" cleans and NLPs data exported as RTF from results page of LexisNexis Uni and exports data as json.
 
