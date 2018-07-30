@@ -1,0 +1,118 @@
+from __future__ import division
+
+def descriptive_stats(input_library, output_library):
+    
+    # this function (1) calculates and prints cosine similarity between year to year text vectors 
+    # and year to year+10 vectors, and (2) saves a list of tf-idf weights to file.
+    
+    # it is written for longitudinal news text from 1973-2018, and should be modified for other ranges
+    
+    import os, re, json, sys, itertools, operator, csv
+    import numpy as np
+    import pandas as pd
+    from pandas import DataFrame
+    from collections import Counter
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+
+    # creating list of .json files in directory
+    os.chdir(input_library)
+    files = [f for f in os.listdir('.') if f != ".DS_Store"] 
+    
+    # loading the .json files
+    raw_data = []    
+    for file in files:
+        with open(file, 'r') as f:
+            r = json.loads(f.read())
+            raw_data.extend(i for i in r)
+            
+    # this section loads each word from the corpus, uses Counter to count the appearance of each word in the corpus,
+    # then rewrites the corpus to include only words that appear 5 or more times in the total corpus.
+    
+    total_vocabulary = [x for y in raw_data for x in y['headline']]
+    for entry in raw_data:
+        total_vocabulary.extend(x for y in entry['text'] for x in y)
+        
+    included_words = set(key for (key, value) in Counter(total_vocabulary).items() if value>=5)
+    
+    for entry in raw_data:
+        entry['headline']=[i for i in entry['headline'] if i in included_words]
+        entry['text']=[[i for i in each if i in included_words] for each in entry['text']]
+        
+    # this loop transforms the data to a year-level dictionary, then joins the text of each entry to a string
+    transformed_data = {}
+    for each in raw_data:
+        q = re.match('(\d\d\d\d)', each['date'])
+        year = q.group(1)
+        if year in transformed_data:
+            transformed_data[year].extend(each['headline'])
+            transformed_data[year].extend(itertools.chain.from_iterable(each['text']))
+        if year not in transformed_data:
+            transformed_data[year]=each['headline']
+            transformed_data[year].extend(itertools.chain.from_iterable(each['text']))  
+    for entry in transformed_data:
+        transformed_data[entry]= " ".join(transformed_data[entry])
+        
+    # here the data is moved to a pandas dataframe object and vectorized
+    tech_dataframe = DataFrame.from_dict(transformed_data, orient='index').sort_index().rename({0:'text'}, axis='columns')
+    
+    tfidf_vectorizer = TfidfVectorizer(lowercase=False, preprocessor=None, analyzer='word', stop_words=None, norm='l2', use_idf=True, smooth_idf=False)
+    vectorized_data = tfidf_vectorizer.fit_transform(tech_dataframe.text)
+
+    # the loops below calculate the cosine similarity for y2y and y2y+10 comparisons
+    y2y_cosines = {}
+    index_ = 0
+    year = 1974
+
+    while index_<45:
+        next_=index_+1
+        y2y_cosines[str(year-1)+" to "+str(year)]=np.mean(cosine_similarity(vectorized_data[index_], vectorized_data[next_]))
+        index_+=1
+        year+=1
+        
+    print("Cosine similarity between consecutive years is:")
+    for key, value in y2y_cosines.items():
+        print(key, value)
+        
+    y2y10_cosines = {}
+    index_ = 0
+    year = 1973
+
+    while index_<36:
+        next_=index_+10
+        y2y10_cosines[str(year)+" to "+str(year+10)]=np.mean(cosine_similarity(vectorized_data[index_], vectorized_data[next_]))
+        index_+=1
+        year+=1
+        
+    print("Cosine similarity between each year and the year a decade later is:")
+    for key, value in y2y10_cosines.items():
+        print(key, value)
+    
+    # the following loop extracts the tf-idf weights from the previously vectorized data and writes the words with 
+    # the 15 highest tf-idf weights per year to file
+    
+    index_value={i[1]:i[0] for i in tfidf_vectorizer.vocabulary_.items()}
+    full_index = []
+    year = 1973
+    for row in vectorized_data:
+        full_index.append({year: {index_value[column]:value for (column, value) in zip(row.indices, row.data)}})
+        year +=1
+
+    os.chdir(output_library)
+
+    for each in full_index:
+        for value in each:
+            q = list(sorted(each[value].items(), key=operator.itemgetter(1), reverse=True)[:15])
+            with open ('TF_IDF_weights.csv', 'a', newline='') as file:
+                mod_writer = csv.writer(file, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                mod_writer.writerow([q])
+                file.close()
+                
+#####
+#####
+#####
+
+input_library = " "
+output_library = " "
+
+descriptive_stats(input_library, output_library)
